@@ -1,2 +1,2 @@
-# MSPR-Appli-Produit
+# MSPR-Application Produit
 Application Produit / API REST
