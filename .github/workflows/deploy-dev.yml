@@ -24,6 +24,9 @@ jobs:
           project_id: ${{ secrets.PROJECT_ID }}
           service_account_key: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           export_default_credentials: true
+        run: |
+          gcloud config set project ${{ secrets.PROJECT_ID }}
+          
       - name: Authenticate with gcloud
         env:
           SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
