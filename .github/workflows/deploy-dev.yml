@@ -2,7 +2,7 @@ name: deploy API order
 on:
   push:
     branches:
-    - 'development'
+    - development
 
 env: 
   GOOGLE_PROJECT: ${{ secrets.PROJECT_ID }}
