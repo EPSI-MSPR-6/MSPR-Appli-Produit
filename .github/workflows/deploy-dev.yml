@@ -1,4 +1,4 @@
-name: deploy API productss
+name: deploy API products
 on:
   push:
     branches:
@@ -24,8 +24,6 @@ jobs:
           project_id: ${{ secrets.PROJECT_ID }}
           service_account_key: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           export_default_credentials: true
-        run: |
-          gcloud config set project ${{ secrets.PROJECT_ID }}
           
       - name: Authenticate with gcloud
         env:
@@ -47,4 +45,4 @@ jobs:
         run: |
           gcloud run deploy $IMAGE_NAME \
             --image $REGION-docker.pkg.dev/$GOOGLE_PROJECT/$REPOSITORIES/$IMAGE_NAME:$VERSION \
-            --region $REGION \
+            --region $REGION
