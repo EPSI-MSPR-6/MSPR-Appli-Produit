@@ -46,5 +46,3 @@ jobs:
           gcloud run deploy $IMAGE_NAME \
             --image $REGION-docker.pkg.dev/$GOOGLE_PROJECT/$REPOSITORIES/$IMAGE_NAME:$VERSION \
             --region $REGION \
-            --port 8080 \
-            --allow-unauthenticated \
