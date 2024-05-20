@@ -11,4 +11,4 @@ COPY config/ ./config
 
 EXPOSE 8080
 
-CMD ["node", "src/index.js"]
+CMD ["node", "index.js"]
