@@ -13,7 +13,8 @@
     "author": "Votre Nom",
     "license": "MIT",
     "dependencies": {
+        "body-parser": "^1.19.0",
         "express": "^4.17.1",
-        "body-parser": "^1.19.0"
+        "firebase": "^10.12.0"
     }
 }
