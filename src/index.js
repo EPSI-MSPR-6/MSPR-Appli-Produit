@@ -1,11 +1,11 @@
-import express, { json } from 'express';
-import db from './firebase'; // Importez votre fichier firebase.js
+const express = require('express')
+const db = require('./firebase').default; // Importez votre fichier firebase.js
 
 const app = express()
 //const port = 8080
 
 
-app.use(json());
+app.use(express.json());
 
 app.post('/add', async (req, res) => {
     try {
