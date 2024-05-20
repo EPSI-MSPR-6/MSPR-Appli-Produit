@@ -5,7 +5,7 @@ const app = express()
 const port = 8080
 
 
-app.use(express.json());
+/* app.use(express.json());
 
 app.post('/add', async (req, res) => {
     try {
@@ -15,7 +15,7 @@ app.post('/add', async (req, res) => {
         res.status(500).send('Error adding document: ' + error.message);
     }
 });
-
+ */
 // Ajoutez d'autres routes et logiques ici
 
 
