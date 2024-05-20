@@ -1,5 +1,5 @@
 const express = require('express')
-//const db = require('./firebase'); // Importez votre fichier firebase.js
+const db = require('./firebase.JS'); // Importez votre fichier firebase.js
 
 const app = express()
 const port = 8080
