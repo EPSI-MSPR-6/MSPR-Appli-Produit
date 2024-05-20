@@ -1,11 +1,15 @@
 const express = require('express')
 const db = require('./firebase'); // Importez votre fichier firebase.js
 
-const app = express()
-const port = 8080
+/* const app = express()
+const port = 8080 */
 
+/* app.listen(port, () => {
+    console.log(`Example app listening on port ${port}`)
+})
+ */
 
-app.use(express.json());
+/* app.use(express.json());
 
 app.post('/add', async (req, res) => {
     try {
@@ -14,9 +18,17 @@ app.post('/add', async (req, res) => {
     } catch (error) {
         res.status(500).send('Error adding document: ' + error.message);
     }
-});
+}); */
 
 // Ajoutez d'autres routes et logiques ici
+
+//const express = require('express')
+const app = express()
+const port = 8080
+
+app.get('/', (req, res) => {
+    res.send('Hello World!')
+})
 
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
