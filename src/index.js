@@ -1,4 +1,4 @@
-/* const express = require('express')
+const express = require('express')
 const db = require('./firebase'); // Importez votre fichier firebase.js
 
 const app = express()
@@ -21,9 +21,9 @@ app.post('/add', async (req, res) => {
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
-}); */
+});
 
-const express = require('express')
+/* const express = require('express')
 const app = express()
 const port = 8080
 
@@ -33,4 +33,4 @@ app.get('/', (req, res) => {
 
 app.listen(port, () => {
     console.log(`Example app listening on port ${port}`)
-})
+}) */
