@@ -1,11 +1,14 @@
 const express = require('express')
 const db = require('./firebase.js'); // Importer le fichier firebase.js
+const bodyParser = require('body-parser');
+const routes = require('./routes');
 
 console.log(db)
 
 const app = express()
 const port = 8080
-
+app.use(bodyParser.json());
+app.use('/api', routes);
 
 app.use(express.json());
 
@@ -22,5 +25,5 @@ app.post('/add', async (req, res) => {
 
 
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+    console.log(`Service Produits en écoute sur le port ${port}`);
 });
