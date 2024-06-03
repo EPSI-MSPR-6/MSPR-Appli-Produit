@@ -1,4 +1,4 @@
-const db = require('../../firebaseConfig');
+const db = require('../firebase');
 const { v4: uuidv4 } = require('uuid');
 
 exports.getAllProducts = async (req, res) => {
