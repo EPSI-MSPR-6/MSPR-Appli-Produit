@@ -1,10 +1,14 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('./config/mspr-payetonkawa-58875-73430-firebase-adminsdk-6zken-50aba7c0a3.json'); // Téléchargez ce fichier depuis la console Firebase
+
 
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: "https://your-database-name.firebaseio.com"
+    credential: admin.credential.cert({
+        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        projectId: "mspr-payetonkawa-58875-73430"
+    })
 });
+
 
 const db = admin.firestore();
 

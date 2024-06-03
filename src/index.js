@@ -2,6 +2,7 @@ const express = require('express')
 const db = require('./firebase.js'); // Importer le fichier firebase.js
 const bodyParser = require('body-parser');
 const routes = require('./routes');
+require('dotenv').config();
 
 console.log(db)
 
