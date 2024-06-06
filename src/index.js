@@ -7,7 +7,7 @@ require('dotenv').config();
 console.log(db)
 
 const app = express()
-const port = 8080
+const port = 8081
 app.use(bodyParser.json());
 app.use('/api', routes);
 

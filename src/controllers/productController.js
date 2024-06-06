@@ -2,6 +2,7 @@ const db = require('../firebase');
 const { v4: uuidv4 } = require('uuid');
 
 exports.getAllProducts = async (req, res) => {
+    console.log("hello test")
     try {
         const productsSnapshot = await db.collection('products').get();
         const products = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
