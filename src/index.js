@@ -4,7 +4,7 @@ const bodyParser = require('body-parser');
 const routes = require('./routes');
 require('dotenv').config();
 
-console.log(db)
+// console.log(db)
 
 const app = express()
 const port = 8081
