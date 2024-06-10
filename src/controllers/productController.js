@@ -1,34 +1,46 @@
-const db = require('../firebase'); 
+const db = require('../firebase');
 const { v4: uuidv4 } = require('uuid');
 
-// Middleware pour valider les champs du produit lors de la création
-const validateCreateProduct = (req, res, next) => {
-    const { nom, description, prix, quantite_stock } = req.body;
-    if (!nom || !description || !prix || !quantite_stock) {
-        return res.status(400).send('Les champs nom, description, prix, et quantite_stock sont obligatoires.');
+// Regex pour la validation
+const nameRegex = /^[a-zA-Z\s'-]+$/;
+const descriptionRegex = /^[a-zA-Z0-9\s,'-]+$/;
+
+const validateProductFields = (product, isUpdate = false) => {
+    const { nom, description, prix, quantite_stock } = product;
+
+    if (!isUpdate && (!nom || !description || !prix || !quantite_stock)) {
+        return 'Les champs nom, description, prix, et quantite_stock sont obligatoires.';
     }
-    if (typeof nom !== 'string' || typeof description !== 'string' || typeof prix !== 'number' || typeof quantite_stock !== 'number') {
-        return res.status(400).send('Les types de champs sont incorrects.');
+    if (nom && (typeof nom !== 'string' || !nameRegex.test(nom))) {
+        return 'Le champ nom contient des caractères invalides.';
+    }
+    if (description && (typeof description !== 'string' || !descriptionRegex.test(description))) {
+        return 'Le champ description contient des caractères invalides.';
+    }
+    if (prix && (typeof prix !== 'number' || prix <= 0)) {
+        return 'Le champ prix doit être un nombre positif.';
+    }
+    if (quantite_stock && (typeof quantite_stock !== 'number' || quantite_stock < 0)) {
+        return 'Le champ quantite_stock doit être un nombre positif.';
+    }
+    return null;
+};
+
+const validateCreateProduct = (req, res, next) => {
+    const errorMessage = validateProductFields(req.body);
+    if (errorMessage) {
+        return res.status(400).send(errorMessage);
     }
     next();
 };
 
 const validateUpdateProduct = (req, res, next) => {
-    const { nom, description, prix, quantite_stock } = req.body;
     if (req.body.id_produit) {
         return res.status(400).send("Le champ id_produit ne peut pas être modifié.");
     }
-    if (nom && typeof nom !== 'string') {
-        return res.status(400).send('Le champ nom doit être une chaîne de caractères.');
-    }
-    if (description && typeof description !== 'string') {
-        return res.status(400).send('Le champ description doit être une chaîne de caractères.');
-    }
-    if (prix && typeof prix !== 'number') {
-        return res.status(400).send('Le champ prix doit être un nombre.');
-    }
-    if (quantite_stock && typeof quantite_stock !== 'number') {
-        return res.status(400).send('Le champ quantite_stock doit être un nombre.');
+    const errorMessage = validateProductFields(req.body, true);
+    if (errorMessage) {
+        return res.status(400).send(errorMessage);
     }
     next();
 };
@@ -65,7 +77,7 @@ exports.createProduct = [validateCreateProduct, async (req, res) => {
             prix: req.body.prix,
             quantite_stock: req.body.quantite_stock
         };
-        const docRef = await db.collection('products').doc(newProduct.id).set(newProduct);
+        await db.collection('products').doc(newProduct.id).set(newProduct);
         res.status(201).send('Produit créé avec son ID : ' + newProduct.id);
     } catch (error) {
         res.status(500).send('Erreur lors de la création du produit : ' + error.message);
