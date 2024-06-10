@@ -1,12 +1,16 @@
 const request = require('supertest');
 const express = require('express');
-const productsRouter = require('../../src/routes/index.js');
+const productsRouter = require('../../src/controllers/productController.js');
 const db = require('../../src/firebase.js');
 const { setupFirebaseTestEnv, teardownFirebaseTestEnv } = require('../firebaseTestEnv.js');
 
+require('dotenv').config({ path: '.env.test' });
+
+const ApiKey = process.env.API_KEY;
+
 const app = express();
 app.use(express.json());
-app.use('/api', productsRouter);
+app.use('/products', productsRouter);
 
 beforeAll(async () => {
     await setupFirebaseTestEnv();
@@ -16,25 +20,34 @@ afterAll(async () => {
     await teardownFirebaseTestEnv();
 });
 
+const getProductsWithApiKey = async (apiKey = ApiKey) => {
+    return await request(app)
+        .get('/products')
+        .set('x-api-key', apiKey);
+};
+
+const createProduct = async (productData) => {
+    return await request(app)
+        .post('/products')
+        .set('x-api-key', ApiKey)
+        .send(productData);
+};
+
+const updateProduct = async (id, productData) => {
+    return await request(app)
+        .put(`/products/${id}`)
+        .set('x-api-key', ApiKey)
+        .send(productData);
+};
+
+const deleteProduct = async (id) => {
+    return await request(app)
+        .delete(`/products/${id}`)
+        .set('x-api-key', ApiKey);
+};
+
 describe('Products API', () => {
     let productId;
-
-    const createProduct = async (productData) => {
-        return await request(app)
-            .post('/api/products')
-            .send(productData);
-    };
-
-    const updateProduct = async (id, productData) => {
-        return await request(app)
-            .put(`/api/products/${id}`)
-            .send(productData);
-    };
-
-    const deleteProduct = async (id) => {
-        return await request(app)
-            .delete(`/api/products/${id}`);
-    };
 
     test('Création Produit', async () => {
         const response = await createProduct({ nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 50 });
@@ -42,19 +55,18 @@ describe('Products API', () => {
         expect(response.status).toBe(201);
         expect(response.text).toMatch(/Produit créé avec son ID : /);
 
-        // Extrait l'ID du Produit pour les futurs tests
         productId = response.text.split('Produit créé avec son ID : ')[1];
     });
 
     test('Récupération de tous les produits', async () => {
-        const response = await request(app).get('/api/products');
+        const response = await request(app).get('/products');
         expect(response.status).toBe(200);
         expect(response.body).toBeInstanceOf(Array);
         expect(response.body.length).toBeGreaterThan(0);
     });
 
     test('Récuparation Produit via ID', async () => {
-        const response = await request(app).get(`/api/products/${productId}`);
+        const response = await request(app).get(`/products/${productId}`);
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('id', productId);
     });
@@ -71,9 +83,39 @@ describe('Products API', () => {
         expect(response.text).toBe('Produit supprimé');
     });
 
+    // Tests Erreurs 403
+    describe('Tests403', () => {
+        const invalidApiKey = 'invalid-api-key';
+        test('Erreur_403_CreateProduct', async () => {
+            const response = await request(app)
+                .post('/products')
+                .set('x-api-key', invalidApiKey)
+                .send({ nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 50 });
+            expect(response.status).toBe(403);
+            expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
+        });
+
+        test('Erreur_403_UpdateProduct', async () => {
+            const response = await request(app)
+                .put(`/products/${productId}`)
+                .set('x-api-key', invalidApiKey)
+                .send({ nom: 'Updated Product', description: 'Updated Description', prix: 150.0, quantite_stock: 30 });
+            expect(response.status).toBe(403);
+            expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
+        });
+
+        test('Erreur_403_DeleteProduct', async () => {
+            const response = await request(app)
+                .delete(`/products/${productId}`)
+                .set('x-api-key', invalidApiKey);
+            expect(response.status).toBe(403);
+            expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
+        });
+    });
+
     // Tests Erreurs 404
     test('Erreur_404_GetProduct', async () => {
-        const response = await request(app).get('/api/products/test');
+        const response = await request(app).get('/products/test');
         expect(response.status).toBe(404);
         expect(response.text).toBe('Produit non trouvé');
     });
@@ -100,31 +142,26 @@ describe('Products API', () => {
     // Tests Erreurs 400
     test('Erreur_400_CreateProduct_MissingFields', async () => {
         const invalidProduct = { nom: 'Test Product' }; // Missing fields
-
         await testCreateProductError(invalidProduct, 'Les champs nom, description, prix, et quantite_stock sont obligatoires.');
     });
 
     test('Erreur_400_CreateProduct_InvalidNom', async () => {
         const invalidProduct = { nom: 'Test@Product', description: 'Description', prix: 100.0, quantite_stock: 50 };
-
         await testCreateProductError(invalidProduct, 'Le champ nom contient des caractères invalides.');
     });
 
     test('Erreur_400_CreateProduct_InvalidDescription', async () => {
         const invalidProduct = { nom: 'Test Product', description: 'Desc@ription', prix: 100.0, quantite_stock: 50 };
-
         await testCreateProductError(invalidProduct, 'Le champ description contient des caractères invalides.');
     });
 
     test('Erreur_400_CreateProduct_InvalidPrix', async () => {
         const invalidProduct = { nom: 'Test Product', description: 'Description', prix: 'invalid', quantite_stock: 50 };
-
         await testCreateProductError(invalidProduct, 'Le champ prix doit être un nombre positif.');
     });
 
     test('Erreur_400_CreateProduct_InvalidQuantite', async () => {
         const invalidProduct = { nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 'invalid' };
-
         await testCreateProductError(invalidProduct, 'Le champ quantite_stock doit être un nombre positif.');
     });
 
@@ -167,13 +204,13 @@ describe('Products API', () => {
         });
 
         test('Erreur_500_GetProducts', async () => {
-            const response = await request(app).get('/api/products');
+            const response = await request(app).get('/products');
             expect(response.status).toBe(500);
             expect(response.text).toMatch(/Erreur lors de la récupération des produits : /);
         });
 
         test('Erreur_500_GetProductByID', async () => {
-            const response = await request(app).get('/api/products/test');
+            const response = await request(app).get(`/products/test`);
             expect(response.status).toBe(500);
             expect(response.text).toMatch(/Erreur lors de la récupération du produit par ID : /);
         });

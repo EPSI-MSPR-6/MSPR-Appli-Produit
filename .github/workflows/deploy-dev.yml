@@ -10,6 +10,7 @@ env:
   REPOSITORIES: ${{ secrets.REPO_ARTIFACT_REGISTRY }}
   IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
   VERSION: ${{ secrets.VERSION }}
+  API_KEY: ${{ secrets.API_KEY }}
 
 jobs:
   deploy:

@@ -1,51 +1,11 @@
-const db = require('../firebase');
+const express = require('express');
+const router = express.Router();
+const db = require('../firebase.js');
 const { v4: uuidv4 } = require('uuid');
+const { validateCreateProduct, validateUpdateProduct, checkApiKey } = require('../services/middlewares.js');
 
-// Regex pour la validation
-const nameRegex = /^[a-zA-Z\s'-]+$/;
-const descriptionRegex = /^[a-zA-Z0-9\s,'-]+$/;
-
-const validateProductFields = (product, isUpdate = false) => {
-    const { nom, description, prix, quantite_stock } = product;
-
-    if (!isUpdate && (!nom || !description || !prix || !quantite_stock)) {
-        return 'Les champs nom, description, prix, et quantite_stock sont obligatoires.';
-    }
-    if (nom && (typeof nom !== 'string' || !nameRegex.test(nom))) {
-        return 'Le champ nom contient des caractères invalides.';
-    }
-    if (description && (typeof description !== 'string' || !descriptionRegex.test(description))) {
-        return 'Le champ description contient des caractères invalides.';
-    }
-    if (prix && (typeof prix !== 'number' || prix <= 0)) {
-        return 'Le champ prix doit être un nombre positif.';
-    }
-    if (quantite_stock && (typeof quantite_stock !== 'number' || quantite_stock < 0)) {
-        return 'Le champ quantite_stock doit être un nombre positif.';
-    }
-    return null;
-};
-
-const validateCreateProduct = (req, res, next) => {
-    const errorMessage = validateProductFields(req.body);
-    if (errorMessage) {
-        return res.status(400).send(errorMessage);
-    }
-    next();
-};
-
-const validateUpdateProduct = (req, res, next) => {
-    if (req.body.id_produit) {
-        return res.status(400).send("Le champ id_produit ne peut pas être modifié.");
-    }
-    const errorMessage = validateProductFields(req.body, true);
-    if (errorMessage) {
-        return res.status(400).send(errorMessage);
-    }
-    next();
-};
-
-exports.getAllProducts = async (req, res) => {
+// Récupération de tous les produits
+router.get('/', async (req, res) => {
     try {
         const productsSnapshot = await db.collection('products').get();
         const products = productsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -53,9 +13,10 @@ exports.getAllProducts = async (req, res) => {
     } catch (error) {
         res.status(500).send('Erreur lors de la récupération des produits : ' + error.message);
     }
-};
+});
 
-exports.getProductById = async (req, res) => {
+// Récupération d'un produit via son ID
+router.get('/:id', async (req, res) => {
     try {
         const productDoc = await db.collection('products').doc(req.params.id).get();
         if (productDoc.exists) {
@@ -66,9 +27,10 @@ exports.getProductById = async (req, res) => {
     } catch (error) {
         res.status(500).send('Erreur lors de la récupération du produit par ID : ' + error.message);
     }
-};
+});
 
-exports.createProduct = [validateCreateProduct, async (req, res) => {
+// Création d'un produit
+router.post('/', checkApiKey, validateCreateProduct, async (req, res) => {
     try {
         const newProduct = {
             id: uuidv4(),
@@ -82,9 +44,10 @@ exports.createProduct = [validateCreateProduct, async (req, res) => {
     } catch (error) {
         res.status(500).send('Erreur lors de la création du produit : ' + error.message);
     }
-}];
+});
 
-exports.updateProduct = [validateUpdateProduct, async (req, res) => {
+// Mise à jour d'un produit
+router.put('/:id', checkApiKey, validateUpdateProduct, async (req, res) => {
     try {
         const productRef = db.collection('products').doc(req.params.id);
         const productDoc = await productRef.get();
@@ -98,9 +61,10 @@ exports.updateProduct = [validateUpdateProduct, async (req, res) => {
     } catch (error) {
         res.status(500).send('Erreur lors de la mise à jour du produit : ' + error.message);
     }
-}];
+});
 
-exports.deleteProduct = async (req, res) => {
+// Suppression d'un produit
+router.delete('/:id', checkApiKey, async (req, res) => {
     try {
         const productDoc = await db.collection('products').doc(req.params.id).get();
         if (!productDoc.exists) {
@@ -112,4 +76,6 @@ exports.deleteProduct = async (req, res) => {
     } catch (error) {
         res.status(500).send('Erreur lors de la suppression du produit : ' + error.message);
     }
-};
+});
+
+module.exports = router;
