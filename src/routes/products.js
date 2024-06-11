@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../firebase.js');
 const { v4: uuidv4 } = require('uuid');
 const { validateCreateProduct, validateUpdateProduct, checkApiKey } = require('../services/middlewares.js');
+const { publishMessage } = require('../services/pubsub.js');
 
 // Récupération de tous les produits
 router.get('/', async (req, res) => {
@@ -77,5 +78,65 @@ router.delete('/:id', checkApiKey, async (req, res) => {
         res.status(500).send('Erreur lors de la suppression du produit : ' + error.message);
     }
 });
+
+// Endpoint Pub/Sub
+router.post('/pubsub', async (req, res) => {
+    const message = req.body.message;
+
+    if (!message || !message.data) {
+        return res.status(400).send('Format de message non valide');
+    }
+
+    const data = Buffer.from(message.data, 'base64').toString();
+    const parsedData = JSON.parse(data);
+
+    console.log(`Message reçu: ${data}`);
+
+    if (parsedData.action === 'CREATE_ORDER') {
+        await handleCreateOrder(parsedData);
+    }
+
+    res.status(200).send();
+});
+
+async function handleCreateOrder(order) {
+    try {
+        const { orderId, productId, quantity } = order;
+
+        // Récupération du produit associé à la commande
+        const productRef = db.collection('products').doc(productId);
+        const productDoc = await productRef.get();
+        if (!productDoc.exists) {
+            console.error(`Produit non trouvé pour la commande ${orderId}`);
+            await publishOrderConfirmation(orderId, 'Annulé (Produit non trouvé)');
+            return;
+        }
+
+        const productData = productDoc.data();
+        if (quantity > productData.quantite_stock) {
+            await publishOrderConfirmation(orderId, 'Annulé (Quantité trop importante)');
+        } else {
+            const newQuantity = productData.quantite_stock - quantity;
+            await productRef.update({ quantite_stock: newQuantity });
+            await publishOrderConfirmation(orderId, 'En cours');
+        }
+    } catch (error) {
+        console.error(`Erreur lors du traitement de la commande ${order.orderId}:`, error);
+    }
+}
+
+async function publishOrderConfirmation(orderId, status) {
+    try {
+        await publishMessage('order-confirmations', {
+            action: 'ORDER_CONFIRMATION',
+            orderId: orderId,
+            status: status,
+            message: `Order ${status}`
+        });
+        console.log(`Confirmation de la commande ${orderId} publiée avec le statut: ${status}`);
+    } catch (error) {
+        console.error(`Erreur lors de la publication de la confirmation de la commande ${orderId}:`, error);
+    }
+}
 
 module.exports = router;
