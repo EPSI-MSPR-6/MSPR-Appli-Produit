@@ -6,12 +6,10 @@ const routes = require('./routes/products.js');
 require('dotenv').config();
 
 const app = express()
-const port = 8081
+const port = 8080
 
 app.use(bodyParser.json());
-app.use('/api', routes);
-
-
+app.use('/products', routes);
 
 
 app.listen(port, () => {
