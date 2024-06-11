@@ -1,4 +1,4 @@
-const nameRegex = /^[a-zA-Z\s'-]+$/;
+const nameRegex = /^[a-zA-Z0-9\s,'-]+$/;
 const descriptionRegex = /^[a-zA-Z0-9\s,'-]+$/;
 
 const validateProductFields = (product, isUpdate = false) => {
