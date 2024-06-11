@@ -3,6 +3,7 @@ const express = require('express');
 const productsRouter = require('../../src/routes/products.js');
 const db = require('../../src/firebase.js');
 const { setupFirebaseTestEnv, teardownFirebaseTestEnv } = require('../firebaseTestEnv.js');
+const { publishMessage } = require('../../src/services/pubsub.js');
 
 require('dotenv').config({ path: '.env.test' });
 
@@ -11,6 +12,10 @@ const ApiKey = process.env.API_KEY;
 const app = express();
 app.use(express.json());
 app.use('/products', productsRouter);
+
+jest.mock('../../src/services/pubsub.js', () => ({
+    publishMessage: jest.fn()
+}));
 
 beforeAll(async () => {
     await setupFirebaseTestEnv();
@@ -54,7 +59,7 @@ describe('Products API', () => {
     let productId;
 
     test('Création Produit', async () => {
-        const response = await createProduct({ nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 50 });
+        const response = await createProduct({ nom: 'Espresso', description: 'Café corsé et intense.', prix: 2.5, quantite_stock: 50 });
 
         expect(response.status).toBe(201);
         expect(response.text).toMatch(/Produit créé avec son ID : /);
@@ -69,14 +74,14 @@ describe('Products API', () => {
         expect(response.body.length).toBeGreaterThan(0);
     });
 
-    test('Récuparation Produit via ID', async () => {
+    test('Récupération Produit via ID', async () => {
         const response = await request(app).get(`/products/${productId}`);
         expect(response.status).toBe(200);
         expect(response.body).toHaveProperty('id', productId);
     });
 
-    test('Mis à jour Produit', async () => {
-        const response = await updateProduct(productId, { nom: 'Updated Product', description: 'Updated Description', prix: 150.0, quantite_stock: 30 });
+    test('Mise à jour Produit', async () => {
+        const response = await updateProduct(productId, { nom: 'Double Espresso', description: 'Café double dose.', prix: 3.0, quantite_stock: 30 });
         expect(response.status).toBe(200);
         expect(response.text).toBe('Produit mis à jour');
     });
@@ -86,130 +91,230 @@ describe('Products API', () => {
         expect(response.status).toBe(200);
         expect(response.text).toBe('Produit supprimé');
     });
-    describe('Tests Pub/Sub', () => {
-        test('Fonction Pub/Sub - Succès', async () => {
-            const createResponse = await createProduct({ nom: 'Test Product PubSub', description: 'Description', prix: 100.0, quantite_stock: 50 });
-            const newProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
+});
 
-            const message = {
-                action: 'CREATE_ORDER',
-                orderId: 'testOrderId',
-                productId: newProductId,
-                quantity: 10
-            };
+describe('Tests Pub/Sub', () => {
+    let newProductId;
 
-            const response = await sendPubSubMessage(message);
-            expect(response.status).toBe(200);
+    test('Fonction Pub_Sub - Création Commande Succès', async () => {
+        const createResponse = await createProduct({ nom: 'Cappuccino', description: 'Café crémeux avec mousse de lait.', prix: 3.5, quantite_stock: 50 });
+        newProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
 
-            const productResponse = await request(app).get(`/products/${newProductId}`);
-            expect(productResponse.status).toBe(200);
-            expect(productResponse.body.quantite_stock).toBe(40);
-        });
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'testOrderId',
+            productId: newProductId,
+            quantity: 10
+        };
 
-        test('Fonction Pub/Sub - Echec ( Quantité insuffisante ) ', async () => {
-            const createResponse = await createProduct({ nom: 'Test Product PubSub Fail', description: 'Description', prix: 100.0, quantite_stock: 5 });
-            const newProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(200);
 
-            const message = {
-                action: 'CREATE_ORDER',
-                orderId: 'testOrderIdFail',
-                productId: newProductId,
-                quantity: 10
-            };
-
-            const response = await sendPubSubMessage(message);
-            expect(response.status).toBe(200);
-
-            const productResponse = await request(app).get(`/products/${newProductId}`);
-            expect(productResponse.status).toBe(200);
-            expect(productResponse.body.quantite_stock).toBe(5);
-        });
+        const productResponse = await request(app).get(`/products/${newProductId}`);
+        expect(productResponse.status).toBe(200);
+        expect(productResponse.body.quantite_stock).toBe(40);
     });
 
-    // Tests Erreurs 403
-    describe('Tests403', () => {
-        const invalidApiKey = 'invalid-api-key';
-        test('Erreur_403_CreateProduct', async () => {
-            const response = await request(app)
-                .post('/products')
-                .set('x-api-key', invalidApiKey)
-                .send({ nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 50 });
-            expect(response.status).toBe(403);
-            expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
-        });
+    test('Fonction Pub/Sub - Création Commande Échec ( Produit Inconnu )', async () => {
+        const unknownProductId = '123456789';
+    
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'testOrderIdFail',
+            productId: unknownProductId,
+            quantity: 10
+        };
+    
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(200);
+        expect(response.text).toMatch(/Confirmation de la commande testOrderIdFail publiée avec le statut: Annulé \(Produit non trouvé\)/);
+    });
+    
 
-        test('Erreur_403_UpdateProduct', async () => {
-            const response = await request(app)
-                .put(`/products/${productId}`)
-                .set('x-api-key', invalidApiKey)
-                .send({ nom: 'Updated Product', description: 'Updated Description', prix: 150.0, quantite_stock: 30 });
-            expect(response.status).toBe(403);
-            expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
-        });
+    test('Fonction Pub_Sub - Création Commande Echec ( Quantité Insuf. ) ', async () => {
+        const createResponse = await createProduct({ nom: 'Latte', description: 'Café au lait.', prix: 4.0, quantite_stock: 5 });
+        const failProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
 
-        test('Erreur_403_DeleteProduct', async () => {
-            const response = await request(app)
-                .delete(`/products/${productId}`)
-                .set('x-api-key', invalidApiKey);
-            expect(response.status).toBe(403);
-            expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
-        });
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'testOrderIdFail',
+            productId: failProductId,
+            quantity: 10
+        };
+
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(200);
+
+        const productResponse = await request(app).get(`/products/${failProductId}`);
+        expect(productResponse.status).toBe(200);
+        expect(productResponse.body.quantite_stock).toBe(5);
     });
 
-    // Tests Erreurs 404
+    test('Fonction Pub/Sub - Action Inconnue', async () => {
+        const message = {
+            action: 'UNKNOWN_ACTION',
+            orderId: 'unknownActionOrderId',
+            productId: newProductId,
+            quantity: 10
+        };
+
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Action non reconnue');
+    });
+
+    test('Fonction Pub/Sub - X Data Envoyé', async () => {
+        const response = await request(app)
+            .post('/products/pubsub')
+            .send({ message: {} });
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Format de message non valide');
+    });
+
+    test('Fonction Pub/Sub - Erreur 500 Création Commande Test', async () => {
+        const createResponse = await createProduct({ nom: 'Mocha', description: 'Café au chocolat.', prix: 4.5, quantite_stock: 50 });
+        const errorProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
+
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'errorOrderId',
+            productId: errorProductId,
+            quantity: 10
+        };
+
+        jest.spyOn(db, 'collection').mockImplementationOnce(() => {
+            throw new Error('Test error');
+        });
+
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors du traitement de la commande/);
+    });
+
+    test('Fonction Pub/Sub - Erreur 500 Publication Message Commande Test', async () => {
+        const createResponse = await createProduct({ nom: 'Macchiato', description: 'Café avec un peu de lait.', prix: 3.0, quantite_stock: 50 });
+        const confirmationErrorProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
+
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'confirmationErrorOrderId',
+            productId: confirmationErrorProductId,
+            quantity: 10
+        };
+
+        publishMessage.mockImplementationOnce(() => {
+            throw new Error('Pub/Sub error');
+        });
+
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors de la publication de la confirmation de la commande/);
+    });
+});
+
+// Tests Erreurs 403
+describe('Tests403', () => {
+    const invalidApiKey = 'test';
+    let productId;
+
+    beforeAll(async () => {
+        const response = await createProduct({ nom: 'Americano', description: 'Café allongé à l\'eau.', prix: 2.0, quantite_stock: 50 });
+        productId = response.text.split('Produit créé avec son ID : ')[1];
+    });
+
+    test('Erreur_403_CreateProduct', async () => {
+        const response = await request(app)
+            .post('/products')
+            .set('x-api-key', invalidApiKey)
+            .send({ nom: 'Flat White', description: 'Café au lait.', prix: 3.5, quantite_stock: 50 });
+        expect(response.status).toBe(403);
+        expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
+    });
+
+    test('Erreur_403_UpdateProduct', async () => {
+        const response = await request(app)
+            .put(`/products/${productId}`)
+            .set('x-api-key', invalidApiKey)
+            .send({ nom: 'Updated Flat White', description: 'Café au lait modifié.', prix: 4.0, quantite_stock: 30 });
+        expect(response.status).toBe(403);
+        expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
+    });
+
+    test('Erreur_403_DeleteProduct', async () => {
+        const response = await request(app)
+            .delete(`/products/${productId}`)
+            .set('x-api-key', invalidApiKey);
+        expect(response.status).toBe(403);
+        expect(response.body).toHaveProperty('message', 'Forbidden: Invalid API Key');
+    });
+});
+
+// Tests Erreurs 404
+describe('Tests404', () => {
+    const invalidProductId = 'test';
+
     test('Erreur_404_GetProduct', async () => {
-        const response = await request(app).get('/products/test');
+        const response = await request(app).get(`/products/${invalidProductId}`);
         expect(response.status).toBe(404);
         expect(response.text).toBe('Produit non trouvé');
     });
 
     test('Erreur_404_UpdateProduct', async () => {
-        const response = await updateProduct('test', { nom: 'ValeurTest' });
+        const response = await updateProduct(invalidProductId, { nom: 'ValeurTest' });
         expect(response.status).toBe(404);
         expect(response.text).toBe('Produit non trouvé');
     });
 
     test('Erreur_404_DeleteProduct', async () => {
-        const response = await deleteProduct('nonexistent');
+        const response = await deleteProduct(invalidProductId);
         expect(response.status).toBe(404);
         expect(response.text).toBe('Produit non trouvé');
     });
+});
 
-    // Fonction utilitaire pour les tests d'erreurs 400
-    const testCreateProductError = async (invalidProduct, expectedError) => {
-        const response = await createProduct(invalidProduct);
-        expect(response.status).toBe(400);
-        expect(response.text).toBe(expectedError);
-    };
+// Fonction utilitaire pour les tests d'erreurs 400
+const testCreateProductError = async (invalidProduct, expectedError) => {
+    const response = await createProduct(invalidProduct);
+    expect(response.status).toBe(400);
+    expect(response.text).toBe(expectedError);
+};
 
-    // Tests Erreurs 400
+// Tests Erreurs 400
+describe('Tests400', () => {
+    let productId;
+
+    beforeAll(async () => {
+        const response = await createProduct({ nom: 'Test Coffee', description: 'Café de test.', prix: 5.0, quantite_stock: 50 });
+        productId = response.text.split('Produit créé avec son ID : ')[1];
+    });
+
     test('Erreur_400_CreateProduct_MissingFields', async () => {
-        const invalidProduct = { nom: 'Test Product' }; // Missing fields
+        const invalidProduct = { nom: 'Test Coffee' }; // Missing fields
         await testCreateProductError(invalidProduct, 'Les champs nom, description, prix, et quantite_stock sont obligatoires.');
     });
 
     test('Erreur_400_CreateProduct_InvalidNom', async () => {
-        const invalidProduct = { nom: 'Test@Product', description: 'Description', prix: 100.0, quantite_stock: 50 };
+        const invalidProduct = { nom: 'Test@Coffee', description: 'Café de test.', prix: 5.0, quantite_stock: 50 };
         await testCreateProductError(invalidProduct, 'Le champ nom contient des caractères invalides.');
     });
 
     test('Erreur_400_CreateProduct_InvalidDescription', async () => {
-        const invalidProduct = { nom: 'Test Product', description: 'Desc@ription', prix: 100.0, quantite_stock: 50 };
+        const invalidProduct = { nom: 'Test Coffee', description: 'Desc@ription', prix: 5.0, quantite_stock: 50 };
         await testCreateProductError(invalidProduct, 'Le champ description contient des caractères invalides.');
     });
 
     test('Erreur_400_CreateProduct_InvalidPrix', async () => {
-        const invalidProduct = { nom: 'Test Product', description: 'Description', prix: 'invalid', quantite_stock: 50 };
+        const invalidProduct = { nom: 'Test Coffee', description: 'Café de test.', prix: 'invalid', quantite_stock: 50 };
         await testCreateProductError(invalidProduct, 'Le champ prix doit être un nombre positif.');
     });
 
     test('Erreur_400_CreateProduct_InvalidQuantite', async () => {
-        const invalidProduct = { nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 'invalid' };
+        const invalidProduct = { nom: 'Test Coffee', description: 'Café de test.', prix: 5.0, quantite_stock: 'invalid' };
         await testCreateProductError(invalidProduct, 'Le champ quantite_stock doit être un nombre positif.');
     });
 
     test('Erreur_400_UpdateProduct_EditID', async () => {
-        const response = await updateProduct(productId, { id_produit: 'newId', nom: 'Updated Product', description: 'Updated Description', prix: 150.0, quantite_stock: 30 });
+        const response = await updateProduct(productId, { id_produit: 'newId', nom: 'Updated Coffee', description: 'Café mis à jour.', prix: 6.0, quantite_stock: 30 });
         expect(response.status).toBe(400);
         expect(response.text).toBe('Le champ id_produit ne peut pas être modifié.');
     });
@@ -237,43 +342,43 @@ describe('Products API', () => {
         expect(response.status).toBe(400);
         expect(response.text).toBe('Le champ quantite_stock doit être un nombre positif.');
     });
+});
 
-    // Tests Erreurs 500
-    describe('Erreur 500', () => {
-        beforeEach(() => {
-            db.collection = jest.fn(() => {
-                throw new Error();
-            });
+// Tests Erreurs 500
+describe('Tests500', () => {
+    beforeEach(() => {
+        db.collection = jest.fn(() => {
+            throw new Error();
         });
+    });
 
-        test('Erreur_500_GetProducts', async () => {
-            const response = await request(app).get('/products');
-            expect(response.status).toBe(500);
-            expect(response.text).toMatch(/Erreur lors de la récupération des produits : /);
-        });
+    test('Erreur_500_GetProducts', async () => {
+        const response = await request(app).get('/products');
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors de la récupération des produits : /);
+    });
 
-        test('Erreur_500_GetProductByID', async () => {
-            const response = await request(app).get(`/products/test`);
-            expect(response.status).toBe(500);
-            expect(response.text).toMatch(/Erreur lors de la récupération du produit par ID : /);
-        });
+    test('Erreur_500_GetProductByID', async () => {
+        const response = await request(app).get(`/products/test`);
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors de la récupération du produit par ID : /);
+    });
 
-        test('Erreur_500_CreateProduct', async () => {
-            const response = await createProduct({ nom: 'Test Product', description: 'Description', prix: 100.0, quantite_stock: 50 });
-            expect(response.status).toBe(500);
-            expect(response.text).toMatch(/Erreur lors de la création du produit : /);
-        });
+    test('Erreur_500_CreateProduct', async () => {
+        const response = await createProduct({ nom: 'Test Coffee', description: 'Café de test.', prix: 5.0, quantite_stock: 50 });
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors de la création du produit : /);
+    });
 
-        test('Erreur_500_UpdateProduct', async () => {
-            const response = await updateProduct('test', { nom: 'ValeurTest' });
-            expect(response.status).toBe(500);
-            expect(response.text).toMatch(/Erreur lors de la mise à jour du produit : /);
-        });
+    test('Erreur_500_UpdateProduct', async () => {
+        const response = await updateProduct('test', { nom: 'ValeurTest' });
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors de la mise à jour du produit : /);
+    });
 
-        test('Erreur_500_DeleteProduct', async () => {
-            const response = await deleteProduct('test');
-            expect(response.status).toBe(500);
-            expect(response.text).toMatch(/Erreur lors de la suppression du produit : /);
-        });
+    test('Erreur_500_DeleteProduct', async () => {
+        const response = await deleteProduct('test');
+        expect(response.status).toBe(500);
+        expect(response.text).toMatch(/Erreur lors de la suppression du produit : /);
     });
 });

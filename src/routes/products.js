@@ -123,7 +123,7 @@ async function handleCreateOrder(order, res) {
 
 async function publishOrderConfirmation(orderId, status, res) {
     try {
-        await publishMessage('order-confirmations', {
+        await publishMessage('client-actions', {
             action: 'ORDER_CONFIRMATION',
             orderId: orderId,
             status: status,
