@@ -90,42 +90,38 @@ router.post('/pubsub', async (req, res) => {
     const data = Buffer.from(message.data, 'base64').toString();
     const parsedData = JSON.parse(data);
 
-    console.log(`Message reçu: ${data}`);
-
     if (parsedData.action === 'CREATE_ORDER') {
-        await handleCreateOrder(parsedData);
+        await handleCreateOrder(parsedData, res);
+    } else {
+        res.status(400).send('Action non reconnue');
     }
-
-    res.status(200).send();
 });
 
-async function handleCreateOrder(order) {
+async function handleCreateOrder(order, res) {
     try {
         const { orderId, productId, quantity } = order;
 
-        // Récupération du produit associé à la commande
         const productRef = db.collection('products').doc(productId);
         const productDoc = await productRef.get();
         if (!productDoc.exists) {
-            console.error(`Produit non trouvé pour la commande ${orderId}`);
-            await publishOrderConfirmation(orderId, 'Annulé (Produit non trouvé)');
+            await publishOrderConfirmation(orderId, 'Annulé (Produit non trouvé)', res);
             return;
         }
 
         const productData = productDoc.data();
         if (quantity > productData.quantite_stock) {
-            await publishOrderConfirmation(orderId, 'Annulé (Quantité trop importante)');
+            await publishOrderConfirmation(orderId, 'Annulé (Quantité trop importante)', res);
         } else {
             const newQuantity = productData.quantite_stock - quantity;
             await productRef.update({ quantite_stock: newQuantity });
-            await publishOrderConfirmation(orderId, 'En cours');
+            await publishOrderConfirmation(orderId, 'En cours', res);
         }
     } catch (error) {
-        console.error(`Erreur lors du traitement de la commande ${order.orderId}:`, error);
+        res.status(500).send(`Erreur lors du traitement de la commande ${order.orderId}`);
     }
 }
 
-async function publishOrderConfirmation(orderId, status) {
+async function publishOrderConfirmation(orderId, status, res) {
     try {
         await publishMessage('order-confirmations', {
             action: 'ORDER_CONFIRMATION',
@@ -133,9 +129,9 @@ async function publishOrderConfirmation(orderId, status) {
             status: status,
             message: `Order ${status}`
         });
-        console.log(`Confirmation de la commande ${orderId} publiée avec le statut: ${status}`);
+        res.status(200).send(`Confirmation de la commande ${orderId} publiée avec le statut: ${status}`);
     } catch (error) {
-        console.error(`Erreur lors de la publication de la confirmation de la commande ${orderId}:`, error);
+        res.status(500).send(`Erreur lors de la publication de la confirmation de la commande ${orderId}`);
     }
 }
 

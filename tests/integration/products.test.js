@@ -1,6 +1,6 @@
 const request = require('supertest');
 const express = require('express');
-const productsRouter = require('../../src/controllers/productController.js');
+const productsRouter = require('../../src/routes/products.js');
 const db = require('../../src/firebase.js');
 const { setupFirebaseTestEnv, teardownFirebaseTestEnv } = require('../firebaseTestEnv.js');
 
@@ -20,12 +20,6 @@ afterAll(async () => {
     await teardownFirebaseTestEnv();
 });
 
-const getProductsWithApiKey = async (apiKey = ApiKey) => {
-    return await request(app)
-        .get('/products')
-        .set('x-api-key', apiKey);
-};
-
 const createProduct = async (productData) => {
     return await request(app)
         .post('/products')
@@ -44,6 +38,16 @@ const deleteProduct = async (id) => {
     return await request(app)
         .delete(`/products/${id}`)
         .set('x-api-key', ApiKey);
+};
+
+const sendPubSubMessage = async (message) => {
+    return await request(app)
+        .post('/products/pubsub')
+        .send({
+            message: {
+                data: Buffer.from(JSON.stringify(message)).toString('base64')
+            }
+        });
 };
 
 describe('Products API', () => {
@@ -81,6 +85,45 @@ describe('Products API', () => {
         const response = await deleteProduct(productId);
         expect(response.status).toBe(200);
         expect(response.text).toBe('Produit supprimé');
+    });
+    describe('Tests Pub/Sub', () => {
+        test('Fonction Pub/Sub - Succès', async () => {
+            const createResponse = await createProduct({ nom: 'Test Product PubSub', description: 'Description', prix: 100.0, quantite_stock: 50 });
+            const newProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
+
+            const message = {
+                action: 'CREATE_ORDER',
+                orderId: 'testOrderId',
+                productId: newProductId,
+                quantity: 10
+            };
+
+            const response = await sendPubSubMessage(message);
+            expect(response.status).toBe(200);
+
+            const productResponse = await request(app).get(`/products/${newProductId}`);
+            expect(productResponse.status).toBe(200);
+            expect(productResponse.body.quantite_stock).toBe(40);
+        });
+
+        test('Fonction Pub/Sub - Echec ( Quantité insuffisante ) ', async () => {
+            const createResponse = await createProduct({ nom: 'Test Product PubSub Fail', description: 'Description', prix: 100.0, quantite_stock: 5 });
+            const newProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
+
+            const message = {
+                action: 'CREATE_ORDER',
+                orderId: 'testOrderIdFail',
+                productId: newProductId,
+                quantity: 10
+            };
+
+            const response = await sendPubSubMessage(message);
+            expect(response.status).toBe(200);
+
+            const productResponse = await request(app).get(`/products/${newProductId}`);
+            expect(productResponse.status).toBe(200);
+            expect(productResponse.body.quantite_stock).toBe(5);
+        });
     });
 
     // Tests Erreurs 403
