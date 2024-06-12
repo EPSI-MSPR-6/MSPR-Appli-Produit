@@ -171,6 +171,22 @@ describe('Tests Pub/Sub', () => {
         expect(response.text).toBe('Format de message non valide');
     });
 
+    test('Fonction Pub/Sub - Erreur 400 Création Commande ( Missing productId)', async () => {
+        const response = await request(app)
+            .post('/products/pubsub')
+            .send({
+                message: {
+                    data: Buffer.from(JSON.stringify({
+                        action: 'CREATE_ORDER',
+                        orderId: 'someOrderId',
+                        quantity: 2
+                    })).toString('base64')
+                }
+            });
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Données de commande manquantes');
+    });
+    
     test('Fonction Pub/Sub - Erreur 500 Création Commande Test', async () => {
         const createResponse = await createProduct({ nom: 'Mocha', description: 'Café au chocolat.', prix: 4.5, quantite_stock: 50 });
         const errorProductId = createResponse.text.split('Produit créé avec son ID : ')[1];

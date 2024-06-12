@@ -97,12 +97,18 @@ router.post('/pubsub', async (req, res) => {
     }
 });
 
+
 async function handleCreateOrder(order, res) {
     try {
         const { orderId, productId, quantity } = order;
 
+        if (!orderId || !productId || !quantity) {
+            return res.status(400).send('Données de commande manquantes');
+        }
+
         const productRef = db.collection('products').doc(productId);
         const productDoc = await productRef.get();
+
         if (!productDoc.exists) {
             await publishOrderConfirmation(orderId, 'Annulé (Produit non trouvé)', res);
             return;
@@ -117,7 +123,6 @@ async function handleCreateOrder(order, res) {
             await publishOrderConfirmation(orderId, 'En cours', res);
         }
     } catch (error) {
-        console.error('Error handling order creation', error);
         res.status(500).send(`Erreur lors du traitement de la commande ${order.orderId}`);
     }
 }
