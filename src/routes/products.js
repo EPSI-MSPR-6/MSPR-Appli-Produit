@@ -110,28 +110,30 @@ async function handleCreateOrder(order, res) {
         const productDoc = await productRef.get();
 
         if (!productDoc.exists) {
-            await publishOrderConfirmation(orderId, 'Annulé (Produit non trouvé)', res);
+            await publishOrderConfirmation(orderId, 0, 'Annulé (Produit non trouvé)', res);
             return;
         }
 
         const productData = productDoc.data();
         if (quantity > productData.quantite_stock) {
-            await publishOrderConfirmation(orderId, 'Annulé (Quantité trop importante)', res);
+            await publishOrderConfirmation(orderId, 0, 'Annulé (Quantité trop importante)', res);
         } else {
             const newQuantity = productData.quantite_stock - quantity;
             await productRef.update({ quantite_stock: newQuantity });
-            await publishOrderConfirmation(orderId, 'En cours', res);
+            const totalPrice = productData.prix * quantity;
+            await publishOrderConfirmation(orderId, totalPrice, 'En cours', res);
         }
     } catch (error) {
         res.status(500).send(`Erreur lors du traitement de la commande ${order.orderId}`);
     }
 }
 
-async function publishOrderConfirmation(orderId, status, res) {
+async function publishOrderConfirmation(orderId, price, status, res) {
     try {
         await publishMessage('product-actions', {
             action: 'ORDER_CONFIRMATION',
             orderId: orderId,
+            price: price,
             status: status,
             message: `Order ${status}`
         });
