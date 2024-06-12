@@ -89,7 +89,7 @@ router.post('/pubsub', async (req, res) => {
 
     const data = Buffer.from(message.data, 'base64').toString();
     const parsedData = JSON.parse(data);
-
+    console.log('Parsed message data', parsedData);
     if (parsedData.action === 'CREATE_ORDER') {
         await handleCreateOrder(parsedData, res);
     } else {
@@ -117,6 +117,7 @@ async function handleCreateOrder(order, res) {
             await publishOrderConfirmation(orderId, 'En cours', res);
         }
     } catch (error) {
+        console.error('Error handling order creation', error);
         res.status(500).send(`Erreur lors du traitement de la commande ${order.orderId}`);
     }
 }
