@@ -54,7 +54,6 @@ const sendPubSubMessage = async (message) => {
             }
         });
 };
-
 describe('Products API', () => {
     let productId;
 
@@ -172,17 +171,13 @@ describe('Tests Pub/Sub', () => {
     });
 
     test('Fonction Pub/Sub - Erreur 400 Création Commande ( Missing productId)', async () => {
-        const response = await request(app)
-            .post('/products/pubsub')
-            .send({
-                message: {
-                    data: Buffer.from(JSON.stringify({
-                        action: 'CREATE_ORDER',
-                        orderId: 'someOrderId',
-                        quantity: 2
-                    })).toString('base64')
-                }
-            });
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'someOrderId',
+            quantity: 2
+        };
+
+        const response = await sendPubSubMessage(message);
         expect(response.status).toBe(400);
         expect(response.text).toBe('Données de commande manquantes');
     });
