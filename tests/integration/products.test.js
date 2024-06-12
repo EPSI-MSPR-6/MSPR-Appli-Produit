@@ -8,7 +8,7 @@ const { publishMessage } = require('../../src/services/pubsub.js');
 require('dotenv').config({ path: '.env.test' });
 
 const ApiKey = process.env.API_KEY;
-// test
+
 const app = express();
 app.use(express.json());
 app.use('/products', productsRouter);
