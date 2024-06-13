@@ -325,9 +325,9 @@ describe('Tests400', () => {
     });
 
     test('Erreur_400_UpdateProduct_EditID', async () => {
-        const response = await updateProduct(productId, { id_produit: 'newId', nom: 'Updated Coffee', description: 'Café mis à jour.', prix: 6.0, quantite_stock: 30 });
+        const response = await updateProduct(productId, { id: 'newId', nom: 'Updated Coffee', description: 'Café mis à jour.', prix: 6.0, quantite_stock: 30 });
         expect(response.status).toBe(400);
-        expect(response.text).toBe('Le champ id_produit ne peut pas être modifié.');
+        expect(response.text).toBe('Le champ id ne peut pas être modifié.');
     });
 
     test('Erreur_400_UpdateProduct_InvalidNom', async () => {
@@ -352,6 +352,20 @@ describe('Tests400', () => {
         const response = await updateProduct(productId, { quantite_stock: 'invalid' });
         expect(response.status).toBe(400);
         expect(response.text).toBe('Le champ quantite_stock doit être un nombre positif.');
+    });
+
+    test('Erreur_400_CreateProduct_DuplicateNameDescription', async () => {
+        const duplicateProduct = { nom: 'Test Coffee', description: 'Café de test.', prix: 5.0, quantite_stock: 20 };
+        await testCreateProductError(duplicateProduct, 'Un produit avec le même nom et la même description existe déjà.');
+    });
+
+    test('Erreur_400_UpdateProduct_DuplicateNameDescription', async () => {
+        const newProductResponse = await createProduct({ nom: 'New Coffee', description: 'Nouveau café.', prix: 6.0, quantite_stock: 40 });
+        const newProductId = newProductResponse.text.split('Produit créé avec son ID : ')[1];
+
+        const response = await updateProduct(newProductId, { nom: 'Test Coffee', description: 'Café de test.', prix: 6.0, quantite_stock: 40 });
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Les modifications feraient conflit avec un autre produit.');
     });
 });
 

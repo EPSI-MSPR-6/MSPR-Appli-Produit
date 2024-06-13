@@ -5,6 +5,14 @@ const { v4: uuidv4 } = require('uuid');
 const { validateCreateProduct, validateUpdateProduct, checkApiKey } = require('../services/middlewares.js');
 const { publishMessage } = require('../services/pubsub.js');
 
+const checkDuplicateProduct = async (nom, description) => {
+    const productsSnapshot = await db.collection('products')
+        .where('nom', '==', nom)
+        .where('description', '==', description)
+        .get();
+    return !productsSnapshot.empty;
+};
+
 // Récupération de tous les produits
 router.get('/', async (req, res) => {
     try {
@@ -33,12 +41,19 @@ router.get('/:id', async (req, res) => {
 // Création d'un produit
 router.post('/', checkApiKey, validateCreateProduct, async (req, res) => {
     try {
+        const { nom, description, prix, quantite_stock } = req.body;
+
+        const isDuplicate = await checkDuplicateProduct(nom, description);
+        if (isDuplicate) {
+            return res.status(400).send('Un produit avec le même nom et la même description existe déjà.');
+        }
+
         const newProduct = {
             id: uuidv4(),
-            nom: req.body.nom,
-            description: req.body.description,
-            prix: req.body.prix,
-            quantite_stock: req.body.quantite_stock
+            nom: nom,
+            description: description,
+            prix: prix,
+            quantite_stock: quantite_stock
         };
         await db.collection('products').doc(newProduct.id).set(newProduct);
         res.status(201).send('Produit créé avec son ID : ' + newProduct.id);
@@ -56,6 +71,10 @@ router.put('/:id', checkApiKey, validateUpdateProduct, async (req, res) => {
             res.status(404).send('Produit non trouvé');
         } else {
             const updatedProduct = req.body;
+            const isDuplicate = await checkDuplicateProduct(updatedProduct.nom, updatedProduct.description);
+            if (isDuplicate) {
+                return res.status(400).send('Les modifications feraient conflit avec un autre produit.');
+            }
             await productRef.set(updatedProduct, { merge: true });
             res.status(200).send('Produit mis à jour');
         }

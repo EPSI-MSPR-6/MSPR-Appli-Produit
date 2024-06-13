@@ -1,8 +1,6 @@
 const nameRegex = /^[a-zA-ZÀ-ÿ0-9\s,'-]+$/;
 const descriptionRegex = /^[a-zA-ZÀ-ÿ0-9\s.,'-]+$/;
 
-
-
 const validateProductFields = (product, isUpdate = false) => {
     const { nom, description, prix, quantite_stock } = product;
 
@@ -33,8 +31,8 @@ const validateCreateProduct = (req, res, next) => {
 };
 
 const validateUpdateProduct = (req, res, next) => {
-    if (req.body.id_produit) {
-        return res.status(400).send("Le champ id_produit ne peut pas être modifié.");
+    if (req.body.id) {
+        return res.status(400).send("Le champ id ne peut pas être modifié.");
     }
     const errorMessage = validateProductFields(req.body, true);
     if (errorMessage) {
