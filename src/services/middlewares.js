@@ -1,5 +1,6 @@
 const nameRegex = /^[a-zA-ZÀ-ÿ0-9\s,'-]+$/;
 const descriptionRegex = /^[a-zA-ZÀ-ÿ0-9\s.,'-]+$/;
+const allowedFields = ['nom', 'description', 'prix', 'quantite_stock'];
 
 const validateProductFields = (product, isUpdate = false) => {
     const { nom, description, prix, quantite_stock } = product;
@@ -19,6 +20,8 @@ const validateProductFields = (product, isUpdate = false) => {
     if (quantite_stock && (typeof quantite_stock !== 'number' || quantite_stock < 0)) {
         return 'Le champ quantite_stock doit être un nombre positif.';
     }
+
+    
     return null;
 };
 
@@ -26,6 +29,11 @@ const validateCreateProduct = (req, res, next) => {
     const errorMessage = validateProductFields(req.body);
     if (errorMessage) {
         return res.status(400).send(errorMessage);
+    }
+
+    const unwantedFields = Object.keys(req.body).filter(key => !allowedFields.includes(key));
+    if (unwantedFields.length > 0) {
+        return res.status(400).send(`Les champs suivants ne sont pas autorisés : ${unwantedFields.join(', ')}`);
     }
     next();
 };
@@ -37,6 +45,11 @@ const validateUpdateProduct = (req, res, next) => {
     const errorMessage = validateProductFields(req.body, true);
     if (errorMessage) {
         return res.status(400).send(errorMessage);
+    }
+
+    const unwantedFields = Object.keys(req.body).filter(key => !allowedFields.includes(key));
+    if (unwantedFields.length > 0) {
+        return res.status(400).send(`Les champs suivants ne sont pas autorisés : ${unwantedFields.join(', ')}`);
     }
     next();
 };
