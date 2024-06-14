@@ -48,6 +48,7 @@ const deleteProduct = async (id) => {
 const sendPubSubMessage = async (message) => {
     return await request(app)
         .post('/products/pubsub')
+        .set('x-api-key', ApiKey)
         .send({
             message: {
                 data: Buffer.from(JSON.stringify(message)).toString('base64')
@@ -165,6 +166,7 @@ describe('Tests Pub/Sub', () => {
     test('Fonction Pub/Sub - X Data Envoyé', async () => {
         const response = await request(app)
             .post('/products/pubsub')
+            .set('x-api-key', ApiKey)
             .send({ message: {} });
         expect(response.status).toBe(400);
         expect(response.text).toBe('Format de message non valide');
