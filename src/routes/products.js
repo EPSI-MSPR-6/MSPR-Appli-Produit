@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const { validateCreateProduct, validateUpdateProduct, checkApiKey } = require('../services/middlewares.js');
 const { publishMessage } = require('../services/pubsub.js');
 
+// Vérification Doublons
 const checkDuplicateProduct = async (nom, description) => {
     const productsSnapshot = await db.collection('products')
         .where('nom', '==', nom)

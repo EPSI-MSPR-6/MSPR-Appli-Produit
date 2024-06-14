@@ -2,6 +2,7 @@ const nameRegex = /^[a-zA-ZÀ-ÿ0-9\s,'-]+$/;
 const descriptionRegex = /^[a-zA-ZÀ-ÿ0-9\s.,'-]+$/;
 const allowedFields = ['nom', 'description', 'prix', 'quantite_stock'];
 
+// Vérification des inputs entrants
 const validateProductFields = (product, isUpdate = false) => {
     const { nom, description, prix, quantite_stock } = product;
 
@@ -25,6 +26,7 @@ const validateProductFields = (product, isUpdate = false) => {
     return null;
 };
 
+// Vérification Création Produit
 const validateCreateProduct = (req, res, next) => {
     const errorMessage = validateProductFields(req.body);
     if (errorMessage) {
@@ -38,6 +40,7 @@ const validateCreateProduct = (req, res, next) => {
     next();
 };
 
+// Vérification Mis à jour Produit
 const validateUpdateProduct = (req, res, next) => {
     if (req.body.id) {
         return res.status(400).send("Le champ id ne peut pas être modifié.");
@@ -54,6 +57,7 @@ const validateUpdateProduct = (req, res, next) => {
     next();
 };
 
+// Vérification Header API_KEY
 const checkApiKey = (req, res, next) => {
     const apiKey = req.headers['x-api-key'];
     if (apiKey && apiKey === process.env.API_KEY) {

@@ -9,13 +9,14 @@ require('dotenv').config({ path: '.env.test' });
 
 const ApiKey = process.env.API_KEY;
 
+jest.mock('../../src/services/pubsub.js', () => ({
+    publishMessage: jest.fn()
+}));
+
 const app = express();
 app.use(express.json());
 app.use('/products', productsRouter);
 
-jest.mock('../../src/services/pubsub.js', () => ({
-    publishMessage: jest.fn()
-}));
 
 beforeAll(async () => {
     await setupFirebaseTestEnv();
@@ -55,7 +56,7 @@ const sendPubSubMessage = async (message) => {
             }
         });
 };
-describe('Products API', () => {
+describe('Tests Généraux', () => {
     let productId;
 
     test('Création Produit', async () => {
@@ -64,6 +65,7 @@ describe('Products API', () => {
         expect(response.status).toBe(201);
         expect(response.text).toMatch(/Produit créé avec son ID : /);
 
+        // Récupération de l'ID pour les futurs tests
         productId = response.text.split('Produit créé avec son ID : ')[1];
     });
 
@@ -86,16 +88,6 @@ describe('Products API', () => {
         expect(response.text).toBe('Produit mis à jour');
     });
 
-    test('Suppression Produit', async () => {
-        const response = await deleteProduct(productId);
-        expect(response.status).toBe(200);
-        expect(response.text).toBe('Produit supprimé');
-    });
-});
-
-describe('Tests Pub/Sub', () => {
-    let newProductId;
-
     test('Fonction Pub_Sub - Création Commande Succès', async () => {
         const createResponse = await createProduct({ nom: 'Cappuccino', description: 'Café crémeux avec mousse de lait.', prix: 3.5, quantite_stock: 50 });
         newProductId = createResponse.text.split('Produit créé avec son ID : ')[1];
@@ -114,22 +106,6 @@ describe('Tests Pub/Sub', () => {
         expect(productResponse.status).toBe(200);
         expect(productResponse.body.quantite_stock).toBe(40);
     });
-
-    test('Fonction Pub/Sub - Création Commande Échec ( Produit Inconnu )', async () => {
-        const unknownProductId = '123456789';
-    
-        const message = {
-            action: 'CREATE_ORDER',
-            orderId: 'testOrderIdFail',
-            productId: unknownProductId,
-            quantity: 10
-        };
-    
-        const response = await sendPubSubMessage(message);
-        expect(response.status).toBe(200);
-        expect(response.text).toMatch(/Confirmation de la commande testOrderIdFail publiée avec le statut: Annulé \(Produit non trouvé\)/);
-    });
-    
 
     test('Fonction Pub_Sub - Création Commande Echec ( Quantité Insuf. ) ', async () => {
         const createResponse = await createProduct({ nom: 'Latte', description: 'Café au lait.', prix: 4.0, quantite_stock: 5 });
@@ -150,39 +126,29 @@ describe('Tests Pub/Sub', () => {
         expect(productResponse.body.quantite_stock).toBe(5);
     });
 
-    test('Fonction Pub/Sub - Action Inconnue', async () => {
-        const message = {
-            action: 'UNKNOWN_ACTION',
-            orderId: 'unknownActionOrderId',
-            productId: newProductId,
-            quantity: 10
-        };
-
-        const response = await sendPubSubMessage(message);
-        expect(response.status).toBe(400);
-        expect(response.text).toBe('Action non reconnue');
+    test('Suppression Produit', async () => {
+        const response = await deleteProduct(productId);
+        expect(response.status).toBe(200);
+        expect(response.text).toBe('Produit supprimé');
     });
 
-    test('Fonction Pub/Sub - X Data Envoyé', async () => {
-        const response = await request(app)
-            .post('/products/pubsub')
-            .set('x-api-key', ApiKey)
-            .send({ message: {} });
-        expect(response.status).toBe(400);
-        expect(response.text).toBe('Format de message non valide');
-    });
-
-    test('Fonction Pub/Sub - Erreur 400 Création Commande ( Missing productId)', async () => {
+    test('Fonction Pub/Sub - Création Commande Échec ( Produit Inconnu )', async () => {
+        const unknownProductId = '123456789';
+    
         const message = {
             action: 'CREATE_ORDER',
-            orderId: 'someOrderId',
-            quantity: 2
+            orderId: 'testOrderIdFail',
+            productId: unknownProductId,
+            quantity: 10
         };
-
+    
         const response = await sendPubSubMessage(message);
-        expect(response.status).toBe(400);
-        expect(response.text).toBe('Données de commande manquantes');
+        expect(response.status).toBe(200);
+        expect(response.text).toMatch(/Confirmation de la commande testOrderIdFail publiée avec le statut: Annulé \(Produit non trouvé\)/);
     });
+});
+
+describe('Tests Pub/Sub - Erreur 500', () => {
     
     test('Fonction Pub/Sub - Erreur 500 Création Commande Test', async () => {
         const createResponse = await createProduct({ nom: 'Mocha', description: 'Café au chocolat.', prix: 4.5, quantite_stock: 50 });
@@ -368,6 +334,40 @@ describe('Tests400', () => {
         const response = await updateProduct(newProductId, { nom: 'Test Coffee', description: 'Café de test.', prix: 6.0, quantite_stock: 40 });
         expect(response.status).toBe(400);
         expect(response.text).toBe('Les modifications feraient conflit avec un autre produit.');
+    });
+
+        test('Fonction Pub/Sub - Action Inconnue', async () => {
+        const message = {
+            action: 'UNKNOWN_ACTION',
+            orderId: 'unknownActionOrderId',
+            productId: newProductId,
+            quantity: 10
+        };
+
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Action non reconnue');
+    });
+
+    test('Fonction Pub/Sub - X Data Envoyé', async () => {
+        const response = await request(app)
+            .post('/products/pubsub')
+            .set('x-api-key', ApiKey)
+            .send({ message: {} });
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Format de message non valide');
+    });
+
+    test('Fonction Pub/Sub - Erreur 400 Création Commande ( Missing productId)', async () => {
+        const message = {
+            action: 'CREATE_ORDER',
+            orderId: 'someOrderId',
+            quantity: 2
+        };
+
+        const response = await sendPubSubMessage(message);
+        expect(response.status).toBe(400);
+        expect(response.text).toBe('Données de commande manquantes');
     });
 });
 
